@@ -1,20 +1,7 @@
-/**
- * Native probe for the OpenCode v2 EGM adapter (design sections 7.4, 11).
- *
- * Builds a disposable project with planted markers, installs the
- * adapter into a disposable destination, runs the preflight check,
- * then runs one real dispatch (egm primary -> egm-design reviewer)
- * including negative attempts (read .env, write a file). Exports the
- * sessions and verifies them with tests/verifier/verify.ts.
- *
- * Usage: bun run tests/probe/run.ts [--model provider/model] [--keep]
- * Env:   EGM_OPENCODE_BIN - opencode binary (default: "opencode")
- */
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { generateInstall } from "../../src/generate.ts";
 import { verifyRun, type SessionExport } from "../verifier/verify.ts";
 
 const OPENCODE = process.env.EGM_OPENCODE_BIN ?? "opencode";
@@ -58,7 +45,6 @@ async function exportSession(id: string, env: Record<string, string>): Promise<S
 async function main(): Promise<void> {
   const scratch = await mkdtemp(join(tmpdir(), "egm-probe-"));
   const project = join(scratch, "project");
-  const dest = join(scratch, "install");
   await mkdir(project, { recursive: true });
   await writeFile(
     join(project, "target.md"),
@@ -67,24 +53,10 @@ async function main(): Promise<void> {
   await writeFile(join(project, "AGENTS.md"), `# Project\n\n${INSTRUCTION_MARKER}\n`);
   await writeFile(join(project, ".env"), `API_KEY=${ENV_SECRET}\n`);
   const repoRoot = join(import.meta.dir, "..", "..");
-  await generateInstall({
-    egmRoot: join(repoRoot, "vendor", "egm"),
-    dest,
-    adapterVersion: "probe",
-  });
+  await writeFile(join(project, "opencode.json"), JSON.stringify({ plugins: [repoRoot] }));
   console.log(`probe project: ${project}`);
 
-  const profileEnv = {
-    OPENCODE_CONFIG: join(dest, "opencode.json"),
-    OPENCODE_DISABLE_PROJECT_CONFIG: "1",
-  };
-
-  const check = await run(["bun", "run", join(dest, "check.ts"), dest, project], {
-    cwd: project,
-    timeoutMs: 120_000,
-  });
-  console.log(check.out.trim());
-  if (check.code !== 0) throw new Error("preflight check failed");
+  const profileEnv = {};
 
   const prompt =
     `${PARENT_MARKER} is a codeword for this conversation only; never pass it to subagents. ` +
@@ -119,7 +91,6 @@ async function main(): Promise<void> {
   const childExps = await Promise.all(childIds.map((id) => exportSession(id, {})));
   console.log(`parent: ${parentId}, children: ${childIds.length}`);
 
-  // Report L1 (parent conversation) and L2 (instruction files) separately.
   const l1 = verifyRun(parentExp, childExps, {
     reviewers: ["egm-design"],
     target: join(project, "target.md"),

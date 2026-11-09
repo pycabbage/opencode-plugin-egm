@@ -1,22 +1,7 @@
-/**
- * Live end-to-end verification for the OpenCode v2 EGM adapter
- * (design section 11, Phase 3).
- *
- * Drives the real skills in a disposable project:
- *   /egm-brainstorm -> /egm-draft -> /egm-review
- * approving human gates with follow-up turns, then verifies the
- * session traces with tests/verifier/verify.ts and reports which
- * artifacts were produced.
- *
- * Usage: bun run tests/e2e/run.ts [--model provider/model]
- * Env:   EGM_OPENCODE_BIN - opencode binary (default: "opencode")
- * The disposable directory is kept and printed for inspection.
- */
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { generateInstall } from "../../src/generate.ts";
 import { verifyRun, type SessionExport } from "../verifier/verify.ts";
 
 const OPENCODE = process.env.EGM_OPENCODE_BIN ?? "opencode";
@@ -87,26 +72,13 @@ async function exportSession(id: string): Promise<SessionExport> {
 async function main(): Promise<void> {
   const scratch = await mkdtemp(join(tmpdir(), "egm-e2e-"));
   const project = join(scratch, "project");
-  const dest = join(scratch, "install");
   await mkdir(project, { recursive: true });
   await writeFile(join(project, "AGENTS.md"), `# Project\n\n${INSTRUCTION_MARKER}\n`);
   await writeFile(join(project, ".env"), `API_KEY=${ENV_SECRET}\n`);
   const repoRoot = join(import.meta.dir, "..", "..");
-  await generateInstall({ egmRoot: join(repoRoot, "vendor", "egm"), dest, adapterVersion: "e2e" });
-  const env = {
-    OPENCODE_CONFIG: join(dest, "opencode.json"),
-    OPENCODE_DISABLE_PROJECT_CONFIG: "1",
-  };
+  await writeFile(join(project, "opencode.json"), JSON.stringify({ plugins: [repoRoot] }));
+  const env = {};
   console.log(`e2e project: ${project}`);
-
-  const check = await run(
-    ["bun", "run", join(dest, "check.ts"), dest, project],
-    project,
-    {},
-    120_000,
-  );
-  console.log(check.out.trim());
-  if (check.code !== 0) throw new Error("preflight check failed");
 
   const startedAt = Date.now() - 60_000;
   let sessionId: string | undefined;
@@ -137,7 +109,6 @@ async function main(): Promise<void> {
   }
   const files = () => listFiles(project);
 
-  // Stage 1: brainstorm.
   await turn(
     `${PARENT_MARKER} はこの会話だけのコードワードです。サブエージェントには渡さないでください。` +
       `次に /egm-brainstorm を実行します。`,
@@ -151,7 +122,6 @@ async function main(): Promise<void> {
   const briefDone = (await files()).includes("concepts_brief.md");
   console.log(`brainstorm: concepts_brief.md ${briefDone ? "OK" : "MISSING"}`);
 
-  // Stage 2: draft.
   let designDoc: string | undefined;
   if (briefDone) {
     await turn(
@@ -167,7 +137,6 @@ async function main(): Promise<void> {
   }
   console.log(`draft: ${designDoc ?? "MISSING"}`);
 
-  // Stage 3: review.
   let reviewDone = false;
   if (designDoc) {
     await turn(`/egm-review ${join(project, designDoc)} をレビューしてください。`);
@@ -184,7 +153,6 @@ async function main(): Promise<void> {
   console.log(`review artifacts: ${reviewDone ? "OK" : "INCOMPLETE"}`);
   console.log(`files: ${(await files()).join(", ")}`);
 
-  // Trace verification.
   const sessions = await apiSessionList();
   const childIds = sessions.filter((s) => s.parentID === sessionId).map((s) => s.id as string);
   const parentExp = await exportSession(sessionId!);

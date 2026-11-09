@@ -1,120 +1,40 @@
-/**
- * Permission rulesets for OpenCode v2 agents.
- *
- * Design: docs/design/opencode-v2-adapter-design.md (section 6.4) and
- * docs/design/phase0-results.md (D2). A ruleset is an ordered list of
- * { action, resource, effect }; the last matching rule wins. Host
- * defaults are prepended by OpenCode and the agent's rules are appended
- * after them, so an agent ruleset that starts with a wildcard deny and
- * then opens specific holes produces the intended effective policy.
- */
+type Row = [string, string, string];
+const rules = (rows: Row[]) =>
+  rows.map(([action, resource, effect]) => ({ action, resource, effect }));
 
-export type Effect = "allow" | "deny" | "ask";
+export const reviewerPermissions = (bundle: string) =>
+  rules([
+    ["*", "*", "deny"],
+    ["read", "*", "allow"],
+    ["read", "*.env", "deny"],
+    ["read", "*.env.*", "deny"],
+    ["read", "*.env.example", "allow"],
+    ["read", "AGENTS.md", "deny"],
+    ["read", "*/AGENTS.md", "deny"],
+    ["read", "CLAUDE.md", "deny"],
+    ["read", "*/CLAUDE.md", "deny"],
+    ["glob", "*", "allow"],
+    ["grep", "*", "deny"],
+    ["external_directory", "*", "deny"],
+    ["external_directory", `${bundle}/**`, "allow"],
+  ]);
 
-export interface PermissionRule {
-  action: string;
-  resource: string;
-  effect: Effect;
-}
-
-function rule(action: string, resource: string, effect: Effect): PermissionRule {
-  return { action, resource, effect };
-}
-
-/** Read-only reviewer (Goldfish) ruleset. `bundleRoot` is an absolute path. */
-export function reviewerPermissions(bundleRoot: string): PermissionRule[] {
-  return [
-    rule("*", "*", "deny"),
-    rule("read", "*", "allow"),
-    rule("read", "*.env", "deny"),
-    rule("read", "*.env.*", "deny"),
-    rule("read", "*.env.example", "allow"),
-    rule("glob", "*", "allow"),
-    // Instruction files are denied as documents too: a persona that goes
-    // looking for project context must not pull AGENTS.md / CLAUDE.md into
-    // the fresh reviewer context (design section 7.3, L2 guard).
-    rule("read", "AGENTS.md", "deny"),
-    rule("read", "*/AGENTS.md", "deny"),
-    rule("read", "CLAUDE.md", "deny"),
-    rule("read", "*/CLAUDE.md", "deny"),
-    // grep is denied: content search can bypass per-file read rules.
-    rule("grep", "*", "deny"),
-    // The bundle lives outside the user's project, so it needs an explicit
-    // external-directory exception; everything else external stays denied.
-    rule("external_directory", "*", "deny"),
-    rule("external_directory", `${bundleRoot}/**`, "allow"),
-  ];
-}
-
-/** Primary `egm` orchestrator ruleset. */
-export function primaryPermissions(bundleRoot: string, reviewerIds: string[]): PermissionRule[] {
-  return [
-    rule("*", "*", "ask"),
-    // The Elephant writes the artifacts and runs the skills' shell steps
-    // with the user's own authority; "ask" auto-denies in non-interactive
-    // runs and breaks artifact writing (Phase 3 finding). Human approval
-    // gates live in the canonical skill flow, not in file permissions.
-    rule("write", "*", "allow"),
-    rule("edit", "*", "allow"),
-    rule("shell", "*", "allow"),
-    rule("read", "*", "allow"),
-    rule("read", "*.env", "ask"),
-    rule("read", "*.env.*", "ask"),
-    rule("read", "*.env.example", "allow"),
-    rule("glob", "*", "allow"),
-    rule("grep", "*", "allow"),
-    rule("skill", "*", "deny"),
-    rule("skill", "egm-*", "allow"),
-    rule("subagent", "*", "deny"),
-    ...reviewerIds.map((id) => rule("subagent", id, "allow")),
-    rule("external_directory", "*", "ask"),
-    rule("external_directory", `${bundleRoot}/**`, "allow"),
-  ];
-}
-
-/** Convert a glob (`*`, `**`) to a RegExp anchored at both ends. */
-export function globToRegExp(glob: string): RegExp {
-  let out = "^";
-  for (let i = 0; i < glob.length; i++) {
-    const c = glob[i]!;
-    if (c === "*") {
-      if (glob[i + 1] === "*") {
-        out += ".*";
-        i++;
-      } else {
-        out += ".*";
-      }
-    } else if ("+?^${}()|[]\\".includes(c)) {
-      out += `\\${c}`;
-    } else if (c === ".") {
-      out += "\\.";
-    } else {
-      out += c;
-    }
-  }
-  return new RegExp(`${out}$`);
-}
-
-/**
- * Evaluate an effective ruleset the way OpenCode does: the last rule
- * whose action and resource patterns both match wins. A resource
- * pattern also matches when it matches the resource's basename, which
- * mirrors how "*.env" style patterns behave for nested paths.
- * Returns undefined when no rule matches.
- */
-export function evaluatePermissions(
-  rules: PermissionRule[],
-  action: string,
-  resource: string,
-): Effect | undefined {
-  let result: Effect | undefined;
-  const basename = resource.split("/").at(-1) ?? resource;
-  for (const r of rules) {
-    if (!globToRegExp(r.action).test(action)) continue;
-    const pattern = globToRegExp(r.resource);
-    if (pattern.test(resource) || pattern.test(basename)) {
-      result = r.effect;
-    }
-  }
-  return result;
-}
+export const primaryPermissions = (bundle: string, reviewers: string[]) =>
+  rules([
+    ["*", "*", "ask"],
+    ["write", "*", "allow"],
+    ["edit", "*", "allow"],
+    ["shell", "*", "allow"],
+    ["read", "*", "allow"],
+    ["read", "*.env", "ask"],
+    ["read", "*.env.*", "ask"],
+    ["read", "*.env.example", "allow"],
+    ["glob", "*", "allow"],
+    ["grep", "*", "allow"],
+    ["skill", "*", "deny"],
+    ["skill", "egm-*", "allow"],
+    ["subagent", "*", "deny"],
+    ...reviewers.map((id): Row => ["subagent", id, "allow"]),
+    ["external_directory", "*", "ask"],
+    ["external_directory", `${bundle}/**`, "allow"],
+  ]);

@@ -1,18 +1,3 @@
-/**
- * Trace verifier for EGM runs on OpenCode v2 (design section 7.4).
- *
- * Compares a parent session export with its child (reviewer) exports
- * and checks the evidence the support claim rests on:
- *   - every expected reviewer was dispatched as a fresh child session
- *     (parentID matches, a completed `subagent` call exists in the parent)
- *   - each child actually read the review target (completed `read` call)
- *   - children used no write/shell tools
- *   - forbidden markers (parent-only secrets, instruction-file markers,
- *     .env contents) appear nowhere in any child export
- *
- * Works purely on exported JSON, so it can verify any run after the fact.
- */
-
 export interface ToolPart {
   type: "tool";
   name: string;
@@ -130,7 +115,6 @@ export function verifyRun(
   return { ok: failures.length === 0, failures, notes };
 }
 
-// CLI: verify.ts <parent.json> <child.json...> --target <path> --reviewers a,b --markers m1,m2
 if (import.meta.main) {
   const argv = process.argv.slice(2);
   const files: string[] = [];
