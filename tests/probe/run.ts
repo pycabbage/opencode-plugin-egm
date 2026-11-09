@@ -5,9 +5,10 @@ import { join } from "node:path";
 import { verifyRun, type SessionExport } from "../verifier/verify.ts";
 
 const OPENCODE = process.env.EGM_OPENCODE_BIN ?? "opencode";
-const MODEL = process.argv.includes("--model")
-  ? process.argv[process.argv.indexOf("--model") + 1]!
-  : "opencode-go/crouton-alpha-free";
+const modelFlag = process.argv.indexOf("--model");
+const modelArg = modelFlag < 0 ? "opencode-go/crouton-alpha-free" : process.argv[modelFlag + 1];
+if (modelArg === undefined) throw new Error("--model requires a value");
+const MODEL: string = modelArg;
 const KEEP = process.argv.includes("--keep");
 
 const PARENT_MARKER = "PARENT_ONLY_MARKER_4193";
@@ -35,14 +36,24 @@ async function run(
   return { code, out };
 }
 
-async function apiSessionList(env: Record<string, string>): Promise<Record<string, unknown>[]> {
+interface SessionListEntry {
+  id: string;
+  parentID?: string;
+  agent?: string;
+  location?: { directory?: string };
+  time?: { created?: number };
+}
+
+async function apiSessionList(env: Record<string, string>): Promise<SessionListEntry[]> {
   const { out } = await run([OPENCODE, "api", "session.list"], { cwd: "/", env });
-  return (JSON.parse(out) as { data: Record<string, unknown>[] }).data;
+  const parsed: { data: SessionListEntry[] } = JSON.parse(out);
+  return parsed.data;
 }
 
 async function exportSession(id: string, env: Record<string, string>): Promise<SessionExport> {
   const { out } = await run([OPENCODE, "session", "export", id], { cwd: "/", env });
-  return JSON.parse(out) as SessionExport;
+  const exp: SessionExport = JSON.parse(out);
+  return exp;
 }
 
 async function main(): Promise<void> {
@@ -85,20 +96,18 @@ async function main(): Promise<void> {
   if (session.code !== 0) console.log(session.out.slice(-800));
 
   const sessions = await apiSessionList({});
-  const parents = sessions.filter(
-    (s) =>
-      (s.location as { directory?: string } | undefined)?.directory === project &&
-      s.agent === "egm" &&
-      (s.time as { created?: number } | undefined)?.created !== undefined &&
-      ((s.time as { created: number }).created as number) >= startedAt - 300_000,
-  );
-  if (parents.length === 0) throw new Error("parent session not found");
-  parents.sort(
-    (a, b) =>
-      ((b.time as { created: number }).created - (a.time as { created: number }).created) as number,
-  );
-  const parentId = parents[0]!.id as string;
-  const childIds = sessions.filter((s) => s.parentID === parentId).map((s) => s.id as string);
+  const parents = sessions
+    .filter(
+      (s) =>
+        s.location?.directory === project &&
+        s.agent === "egm" &&
+        (s.time?.created ?? 0) >= startedAt - 300_000,
+    )
+    .sort((a, b) => (b.time?.created ?? 0) - (a.time?.created ?? 0));
+  const parent = parents[0];
+  if (!parent) throw new Error("parent session not found");
+  const parentId = parent.id;
+  const childIds = sessions.filter((s) => s.parentID === parentId).map((s) => s.id);
   const parentExp = await exportSession(parentId, {});
   const childExps = await Promise.all(childIds.map((id) => exportSession(id, {})));
   console.log(`parent: ${parentId}, children: ${childIds.length}`);

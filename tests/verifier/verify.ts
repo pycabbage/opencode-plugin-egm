@@ -43,11 +43,13 @@ function allText(exp: SessionExport): string {
   return JSON.stringify(exp);
 }
 
+const isToolPart = (part: { type: string }): part is ToolPart => part.type === "tool";
+
 function toolParts(exp: SessionExport): ToolPart[] {
   const out: ToolPart[] = [];
   for (const m of exp.messages) {
     for (const part of m.content ?? []) {
-      if (part.type === "tool") out.push(part as ToolPart);
+      if (isToolPart(part)) out.push(part);
     }
   }
   return out;
@@ -120,7 +122,8 @@ if (import.meta.main) {
   const files: string[] = [];
   const opts: Record<string, string> = {};
   for (let i = 0; i < argv.length; i++) {
-    const a = argv[i]!;
+    const a = argv[i];
+    if (a === undefined) continue;
     if (a.startsWith("--")) opts[a.slice(2)] = argv[++i] ?? "";
     else files.push(a);
   }
@@ -130,9 +133,11 @@ if (import.meta.main) {
     );
     process.exit(2);
   }
-  const [parent, ...children] = (await Promise.all(
-    files.map(async (f) => JSON.parse(await Bun.file(f).text()) as SessionExport),
-  )) as [SessionExport, ...SessionExport[]];
+  const parsed: SessionExport[] = await Promise.all(
+    files.map(async (f): Promise<SessionExport> => JSON.parse(await Bun.file(f).text())),
+  );
+  const [parent, ...children] = parsed;
+  if (!parent) process.exit(2);
   const report = verifyRun(parent, children, {
     reviewers: (opts.reviewers ?? "").split(",").filter(Boolean),
     target: opts.target,

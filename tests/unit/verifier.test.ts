@@ -23,7 +23,7 @@ function parent(markers: string[] = []): SessionExport {
   };
 }
 
-function child(extra: Partial<SessionExport["messages"][number]>[] = []): SessionExport {
+function child(extra: SessionExport["messages"] = []): SessionExport {
   return {
     info: { id: "ses_child", agent: "egm-design", parentID: "ses_parent" },
     messages: [

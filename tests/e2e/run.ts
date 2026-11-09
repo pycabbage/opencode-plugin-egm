@@ -5,9 +5,10 @@ import { join } from "node:path";
 import { verifyRun, type SessionExport } from "../verifier/verify.ts";
 
 const OPENCODE = process.env.EGM_OPENCODE_BIN ?? "opencode";
-const MODEL = process.argv.includes("--model")
-  ? process.argv[process.argv.indexOf("--model") + 1]!
-  : "opencode-go/crouton-alpha-free";
+const modelFlag = process.argv.indexOf("--model");
+const modelArg = modelFlag < 0 ? "opencode-go/crouton-alpha-free" : process.argv[modelFlag + 1];
+if (modelArg === undefined) throw new Error("--model requires a value");
+const MODEL: string = modelArg;
 
 const PARENT_MARKER = "PARENT_ONLY_MARKER_4193";
 const INSTRUCTION_MARKER = "INSTRUCTION_FILE_MARKER_7301";
@@ -59,14 +60,24 @@ async function listFiles(dir: string, base = dir): Promise<string[]> {
   return out;
 }
 
-async function apiSessionList(): Promise<Record<string, unknown>[]> {
+interface SessionListEntry {
+  id: string;
+  parentID?: string;
+  agent?: string;
+  location?: { directory?: string };
+  time?: { created?: number };
+}
+
+async function apiSessionList(): Promise<SessionListEntry[]> {
   const { out } = await run([OPENCODE, "api", "session.list"], "/", {}, 60_000);
-  return (JSON.parse(out) as { data: Record<string, unknown>[] }).data;
+  const parsed: { data: SessionListEntry[] } = JSON.parse(out);
+  return parsed.data;
 }
 
 async function exportSession(id: string): Promise<SessionExport> {
   const { out } = await run([OPENCODE, "session", "export", id], "/", {}, 60_000);
-  return JSON.parse(out) as SessionExport;
+  const exp: SessionExport = JSON.parse(out);
+  return exp;
 }
 
 async function main(): Promise<void> {
@@ -93,16 +104,12 @@ async function main(): Promise<void> {
       const mine = sessions
         .filter(
           (s) =>
-            (s.location as { directory?: string } | undefined)?.directory === project &&
+            s.location?.directory === project &&
             s.agent === "egm" &&
-            ((s.time as { created: number }).created as number) >= startedAt,
+            (s.time?.created ?? 0) >= startedAt,
         )
-        .sort(
-          (a, b) =>
-            ((a.time as { created: number }).created -
-              (b.time as { created: number }).created) as number,
-        );
-      sessionId = mine[0]?.id as string | undefined;
+        .sort((a, b) => (a.time?.created ?? 0) - (b.time?.created ?? 0));
+      sessionId = mine[0]?.id;
       if (!sessionId) throw new Error("could not identify parent session");
       console.log(`parent session: ${sessionId}`);
     }
@@ -154,10 +161,13 @@ async function main(): Promise<void> {
   console.log(`files: ${(await files()).join(", ")}`);
 
   const sessions = await apiSessionList();
-  const childIds = sessions.filter((s) => s.parentID === sessionId).map((s) => s.id as string);
-  const parentExp = await exportSession(sessionId!);
+  if (!sessionId) throw new Error("could not identify parent session");
+  const childIds = sessions.filter((s) => s.parentID === sessionId).map((s) => s.id);
+  const parentExp = await exportSession(sessionId);
   const childExps = await Promise.all(childIds.map((id) => exportSession(id)));
-  const dispatched = [...new Set(childExps.map((c) => c.info.agent).filter(Boolean))] as string[];
+  const dispatched = [
+    ...new Set(childExps.map((c) => c.info.agent).filter((a): a is string => Boolean(a))),
+  ];
   console.log(`children: ${childExps.length}, reviewers dispatched: ${dispatched.join(", ")}`);
   const report = verifyRun(parentExp, childExps, {
     reviewers: ALL_REVIEWERS,
