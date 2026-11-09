@@ -30,13 +30,28 @@ export interface CheckExpectation {
   expect: "allow" | "deny" | "ask";
 }
 
-export function reviewerExpectations(agentId: string, sampleTarget: string): CheckExpectation[] {
+export function reviewerExpectations(
+  agentId: string,
+  sampleTarget: string,
+  projectDir?: string,
+): CheckExpectation[] {
   return [
     { agent: agentId, action: "edit", resource: sampleTarget, expect: "deny" },
+    { agent: agentId, action: "write", resource: sampleTarget, expect: "deny" },
     { agent: agentId, action: "bash", resource: "*", expect: "deny" },
     { agent: agentId, action: "shell", resource: "*", expect: "deny" },
     { agent: agentId, action: "subagent", resource: "*", expect: "deny" },
     { agent: agentId, action: "webfetch", resource: "*", expect: "deny" },
+    { agent: agentId, action: "websearch", resource: "*", expect: "deny" },
+    { agent: agentId, action: "question", resource: "*", expect: "deny" },
+    { agent: agentId, action: "execute", resource: "*", expect: "deny" },
+    { agent: agentId, action: "some_unknown_future_tool", resource: "*", expect: "deny" },
+    {
+      agent: agentId,
+      action: "external_directory",
+      resource: "/outside/the/project/file.md",
+      expect: "deny",
+    },
     { agent: agentId, action: "skill", resource: "*", expect: "deny" },
     { agent: agentId, action: "grep", resource: "*", expect: "deny" },
     { agent: agentId, action: "read", resource: sampleTarget, expect: "allow" },
@@ -45,6 +60,22 @@ export function reviewerExpectations(agentId: string, sampleTarget: string): Che
     { agent: agentId, action: "read", resource: ".env.example", expect: "allow" },
     { agent: agentId, action: "read", resource: "AGENTS.md", expect: "deny" },
     { agent: agentId, action: "read", resource: "docs/CLAUDE.md", expect: "deny" },
+    ...(projectDir
+      ? [
+          {
+            agent: agentId,
+            action: "read",
+            resource: join(projectDir, "AGENTS.md"),
+            expect: "deny" as const,
+          },
+          {
+            agent: agentId,
+            action: "read",
+            resource: join(projectDir, "docs", "CLAUDE.md"),
+            expect: "deny" as const,
+          },
+        ]
+      : []),
     { agent: agentId, action: "glob", resource: "*", expect: "allow" },
   ];
 }
@@ -128,10 +159,20 @@ async function main(): Promise<void> {
     process.exit(2);
   }
   const { reviewerIds } = await loadInstall(dest);
+  if (reviewerIds.length !== 8) {
+    console.error(
+      `EGM preflight check FAILED: expected 8 reviewers, config has ${reviewerIds.length}`,
+    );
+    process.exit(1);
+  }
   const agents = await fetchEffectiveAgents(dest, cwd);
+  if (!agents.has("egm")) {
+    console.error("EGM preflight check FAILED: primary agent egm not in effective config");
+    process.exit(1);
+  }
   const sampleTarget = join(cwd, "some-target.md");
   const expectations: CheckExpectation[] = [
-    ...reviewerIds.flatMap((id) => reviewerExpectations(id, sampleTarget)),
+    ...reviewerIds.flatMap((id) => reviewerExpectations(id, sampleTarget, cwd)),
     ...primaryExpectations(reviewerIds),
   ];
   const failures = runExpectations(agents, expectations);

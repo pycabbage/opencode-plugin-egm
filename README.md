@@ -101,8 +101,9 @@ Approval gates are part of the canonical skills and are preserved.
 Verified on OpenCode 2.2.6 with `opencode-go/crouton-alpha-free`
 (2026-11-09). See the verification record for the full evidence:
 
-- Preflight permission check: 108 expectations pass against the effective
-  configuration reported by OpenCode.
+- Preflight permission check: every expectation passes against the
+  effective configuration reported by OpenCode (see the check output in
+  the verification record).
 - Native probe (planted parent/instruction/.env markers, negative write and
   secret-read attempts): PASS.
 - Live end-to-end `/egm-brainstorm` → `/egm-draft` → `/egm-review`: see the
@@ -112,6 +113,9 @@ Verified on OpenCode 2.2.6 with `opencode-go/crouton-alpha-free`
 
 - Experimental. EGM upstream supports OpenCode **v1** only; this adapter is
   an independent v2 port and is not an upstream Google project.
+- Review targets must live inside the project directory you launch in;
+  reviewers may read the bundle and the project, not arbitrary external
+  paths.
 - `/egm-bootstrap`'s orchestrator/synthesizer personas are not delegated to
   in v0.1; treat bootstrap output as unverified by fresh-context review.
 - The permission guarantee covers launches through `egm-opencode.sh`

@@ -154,7 +154,9 @@ async function main(): Promise<void> {
   // Stage 2: draft.
   let designDoc: string | undefined;
   if (briefDone) {
-    await turn("/egm-draft concepts_brief.md を基に read-it-later の設計書を作成してください。");
+    await turn(
+      `/egm-draft ${join(project, "concepts_brief.md")} を基に read-it-later の設計書を作成してください。`,
+    );
     for (let i = 0; i < 8 && !designDoc; i++) {
       await turn("Option 0 を選択します。提示された最初の選択肢でそのまま進めてください。");
       const fs = await files();
@@ -168,7 +170,7 @@ async function main(): Promise<void> {
   // Stage 3: review.
   let reviewDone = false;
   if (designDoc) {
-    await turn(`/egm-review ${designDoc} をレビューしてください。`);
+    await turn(`/egm-review ${join(project, designDoc)} をレビューしてください。`);
     for (let i = 0; i < 10 && !reviewDone; i++) {
       await turn("Option 0 を選択します。提示された最初の選択肢でそのまま進めてください。");
       const fs = await files();
@@ -186,7 +188,7 @@ async function main(): Promise<void> {
   const dispatched = [...new Set(childExps.map((c) => c.info.agent).filter(Boolean))] as string[];
   console.log(`children: ${childExps.length}, reviewers dispatched: ${dispatched.join(", ")}`);
   const report = verifyRun(parentExp, childExps, {
-    reviewers: dispatched,
+    reviewers: ALL_REVIEWERS,
     forbiddenMarkers: [PARENT_MARKER, INSTRUCTION_MARKER, ENV_SECRET],
   });
   for (const f of report.failures) console.log(`FAIL: ${f}`);

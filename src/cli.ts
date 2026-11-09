@@ -8,6 +8,7 @@
  * Design: docs/design/opencode-v2-adapter-design.md.
  */
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { generateInstall } from "./generate.ts";
 import { verifyManifest, type InstallManifest } from "./manifest.ts";
 import { readFile } from "node:fs/promises";
@@ -15,16 +16,23 @@ import { readFile } from "node:fs/promises";
 const ADAPTER_VERSION = "0.1.0";
 
 function defaultEgmRoot(): string {
-  return join(new URL("..", import.meta.url).pathname, "vendor", "egm");
+  return join(fileURLToPath(new URL("..", import.meta.url)), "vendor", "egm");
 }
 
 async function main(): Promise<void> {
   const [command, ...args] = process.argv.slice(2);
   if (command === "install") {
-    const dest = args.find((a) => !a.startsWith("--"));
-    if (!dest) throw new Error("usage: cli.ts install <dest>");
     const egmFlag = args.indexOf("--egm");
-    const egmRoot = egmFlag >= 0 ? resolve(args[egmFlag + 1]!) : defaultEgmRoot();
+    let egmRoot = defaultEgmRoot();
+    const positional = [...args];
+    if (egmFlag >= 0) {
+      const value = args[egmFlag + 1];
+      if (!value) throw new Error("--egm requires a path argument");
+      egmRoot = resolve(value);
+      positional.splice(egmFlag, 2);
+    }
+    const dest = positional.find((a) => !a.startsWith("--"));
+    if (!dest) throw new Error("usage: cli.ts install <dest> [--egm <vendor-path>]");
     const result = await generateInstall({
       egmRoot,
       dest: resolve(dest),

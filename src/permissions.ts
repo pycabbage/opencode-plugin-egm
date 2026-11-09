@@ -34,7 +34,9 @@ export function reviewerPermissions(bundleRoot: string): PermissionRule[] {
     // looking for project context must not pull AGENTS.md / CLAUDE.md into
     // the fresh reviewer context (design section 7.3, L2 guard).
     rule("read", "AGENTS.md", "deny"),
+    rule("read", "*/AGENTS.md", "deny"),
     rule("read", "CLAUDE.md", "deny"),
+    rule("read", "*/CLAUDE.md", "deny"),
     // grep is denied: content search can bypass per-file read rules.
     rule("grep", "*", "deny"),
     // The bundle lives outside the user's project, so it needs an explicit

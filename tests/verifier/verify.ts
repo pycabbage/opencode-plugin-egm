@@ -110,7 +110,7 @@ export function verifyRun(
           failures.push(`reviewer ${reviewer}: child ${kid.info.id} did not read the target`);
       }
       for (const t of tools) {
-        if (!["read", "glob", "list"].includes(t.name)) {
+        if (!["read", "glob"].includes(t.name)) {
           failures.push(
             `reviewer ${reviewer}: child ${kid.info.id} used unexpected tool ${t.name}`,
           );
