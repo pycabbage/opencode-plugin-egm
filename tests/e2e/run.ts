@@ -171,10 +171,14 @@ async function main(): Promise<void> {
   let reviewDone = false;
   if (designDoc) {
     await turn(`/egm-review ${join(project, designDoc)} をレビューしてください。`);
-    for (let i = 0; i < 10 && !reviewDone; i++) {
-      await turn("Option 0 を選択します。提示された最初の選択肢でそのまま進めてください。");
+    for (let i = 0; i < 14 && !reviewDone; i++) {
+      await turn(
+        "Option 0 を選択します。未実施のステージがあれば続けてください。egm-style を含む全レビュアーの派遣と最終レポートまで完了してください。",
+      );
       const fs = await files();
-      reviewDone = fs.some((f) => /final|zoom_out_report/.test(f));
+      reviewDone =
+        fs.some((f) => /consolidated_review_report|final/.test(f)) &&
+        fs.some((f) => /zoom_out_report/.test(f));
     }
   }
   console.log(`review artifacts: ${reviewDone ? "OK" : "INCOMPLETE"}`);
