@@ -7,8 +7,12 @@ interface AgentShape {
   permissions: { action: string; resource: string; effect: string }[];
 }
 const agents = new Map<string, AgentShape>();
-const skills: { name: string; content: string; path: string }[] = [];
-const commands: { name: string }[] = [];
+const skills: { name: string; description: string; content: string; path: string }[] = [];
+const commands: {
+  name: string;
+  execute: (input: { sessionID: string; prompt: { text: string } }) => Promise<void>;
+}[] = [];
+const prompts: unknown[] = [];
 let defaultAgent: string | undefined;
 const editor = {
   agent: {
@@ -36,27 +40,17 @@ const editor = {
   },
 };
 const ctx = {
-  agent: { transform: async (fn: (ed: typeof editor.agent) => void) => fn(editor.agent) },
-  skill: { transform: async (fn: (ed: typeof editor.skill) => void) => fn(editor.skill) },
-  command: { transform: async (fn: (ed: typeof editor.command) => void) => fn(editor.command) },
-  session: { prompt: async () => {} },
+  agent: { transform: (fn: (ed: typeof editor.agent) => void) => fn(editor.agent) },
+  skill: { transform: (fn: (ed: typeof editor.skill) => void) => fn(editor.skill) },
+  command: { transform: (fn: (ed: typeof editor.command) => void) => fn(editor.command) },
+  session: { prompt: async (input: unknown) => prompts.push(input) },
 };
 await plugin.setup(ctx as never);
 
-const effect = (agent: string, action: string, resource: string) => {
-  let result: string | undefined;
-  for (const r of agents.get(agent)!.permissions) {
-    const match = (p: string, v: string) =>
-      new RegExp(`^${p.replaceAll("**", " ").replaceAll("*", ".*").replaceAll(" ", ".*")}$`).test(
-        v,
-      ) ||
-      new RegExp(`^${p.replaceAll("**", " ").replaceAll("*", ".*").replaceAll(" ", ".*")}$`).test(
-        v.split("/").at(-1)!,
-      );
-    if (match(r.action, action) && match(r.resource, resource)) result = r.effect;
-  }
-  return result;
-};
+const rows = (agent: string) =>
+  agents.get(agent)!.permissions.map((r) => [r.action, r.resource, r.effect] as const);
+const indexOf = (agent: string, row: [string, string, string]) =>
+  rows(agent).findIndex((r) => r[0] === row[0] && r[1] === row[1] && r[2] === row[2]);
 
 describe("plugin setup", () => {
   test("registers egm as default plus eight reviewers", () => {
@@ -67,17 +61,59 @@ describe("plugin setup", () => {
   });
   test("reviewers are read-only and cannot read .env or instruction files", () => {
     for (const id of [...agents.keys()].filter((k) => k !== "egm")) {
-      expect(effect(id, "edit", "/p/x.md")).toBe("deny");
-      expect(effect(id, "subagent", "*")).toBe("deny");
-      expect(effect(id, "read", "/p/design.md")).toBe("allow");
-      expect(effect(id, "read", ".env")).toBe("deny");
-      expect(effect(id, "read", "/p/AGENTS.md")).toBe("deny");
+      const p = rows(id);
+      expect(p[0]).toEqual(["*", "*", "deny"]);
+      for (const row of [
+        ["read", "*.env", "deny"],
+        ["read", "*.env.*", "deny"],
+        ["read", "**/.env", "deny"],
+        ["read", "**/.env.*", "deny"],
+        ["read", "**/*.env", "deny"],
+        ["read", "**/*.env.*", "deny"],
+        ["read", "*.env.example", "allow"],
+        ["read", "AGENTS.md", "deny"],
+        ["read", "*/AGENTS.md", "deny"],
+        ["read", "**/AGENTS.md", "deny"],
+        ["read", "CLAUDE.md", "deny"],
+        ["read", "*/CLAUDE.md", "deny"],
+        ["read", "**/CLAUDE.md", "deny"],
+        ["read", "mcp:*", "deny"],
+        ["grep", "*", "deny"],
+        ["external_directory", "*", "deny"],
+      ] as [string, string, string][]) {
+        expect(indexOf(id, row)).toBeGreaterThan(indexOf(id, ["read", "*", "allow"]));
+      }
+      expect(indexOf(id, ["read", "*.env.example", "allow"])).toBeGreaterThan(
+        indexOf(id, ["read", "**/*.env.*", "deny"]),
+      );
     }
   });
+  test("primary grep of .env asks instead of bypassing the read ask", () => {
+    const p = rows("egm");
+    expect(p[0]).toEqual(["*", "*", "ask"]);
+    for (const row of [
+      ["grep", "*", "allow"],
+      ["grep", "*.env", "ask"],
+      ["grep", "*.env.*", "ask"],
+      ["grep", "**/*.env", "ask"],
+      ["grep", "**/*.env.*", "ask"],
+      ["read", "mcp:*", "deny"],
+    ] as [string, string, string][]) {
+      expect(indexOf("egm", row)).toBeGreaterThan(0);
+    }
+    expect(indexOf("egm", ["grep", "*.env", "ask"])).toBeGreaterThan(
+      indexOf("egm", ["grep", "*", "allow"]),
+    );
+  });
   test("primary dispatches only to reviewers", () => {
-    expect(effect("egm", "subagent", "egm-design")).toBe("allow");
-    expect(effect("egm", "subagent", "general")).toBe("deny");
-    expect(effect("egm", "write", "/p/concepts_brief.md")).toBe("allow");
+    expect(indexOf("egm", ["subagent", "*", "deny"])).toBeGreaterThan(0);
+    for (const id of [...agents.keys()].filter((k) => k !== "egm")) {
+      expect(indexOf("egm", ["subagent", id, "allow"])).toBeGreaterThan(
+        indexOf("egm", ["subagent", "*", "deny"]),
+      );
+    }
+    expect(indexOf("egm", ["subagent", "general", "allow"])).toBe(-1);
+    expect(indexOf("egm", ["write", "*", "allow"])).toBeGreaterThan(0);
   });
   test("registers seven skills and seven commands", () => {
     expect(skills.map((s) => s.name).sort()).toEqual([
@@ -91,5 +127,28 @@ describe("plugin setup", () => {
     ]);
     expect(skills[0]!.content.length).toBeGreaterThan(100);
     expect(commands).toHaveLength(7);
+  });
+  test("skill descriptions survive YAML folded scalars", () => {
+    for (const s of skills) {
+      expect(s.description.length).toBeGreaterThan(10);
+      expect(s.description).not.toBe(">-");
+    }
+    expect(skills.find((s) => s.name === "egm-brainstorm")!.description).toStartWith(
+      "Interactive ideation and brainstorming",
+    );
+  });
+  test("commands prompt the session with a flat sessionID and text", async () => {
+    const cmd = commands.find((c) => c.name === "egm-brainstorm")!;
+    await cmd.execute({ sessionID: "ses_1", prompt: { text: "/egm-brainstorm /tmp/x.md" } });
+    const sent = prompts[0] as { sessionID: string; text: string; files?: string[] };
+    expect(sent.sessionID).toBe("ses_1");
+    expect("prompt" in (prompts[0] as object)).toBe(false);
+    expect(sent.text).toContain("Read and execute");
+    expect(sent.text).toContain("/egm-brainstorm /tmp/x.md");
+    await cmd.execute({ sessionID: "ses_2", prompt: { text: "$(rm -rf /tmp)" } });
+    const refused = prompts[1] as { text: string };
+    expect(refused.text).toContain("was not run");
+    expect(refused.text).toContain("may already have expanded them");
+    expect(refused.text).not.toContain("Read and execute");
   });
 });

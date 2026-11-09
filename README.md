@@ -58,11 +58,11 @@ Verified on OpenCode v2.2.6 (see
 - The `bootstrap_orchestrator` and `synthesizer` personas are not
   delegated in v0.1; `egm-bootstrap` and `egm-drift-report` run in the
   primary session.
-- Slash-command arguments reach the plugin as text. The plugin passes
-  them to the model as data, never to a shell, and instructs the model
-  to refuse inputs containing shell expansion markers such as `$(...)`;
-  because expansion happens on the host, pass document paths, not
-  shell fragments.
+- Slash-command arguments reach the plugin as text. The plugin refuses
+  inputs containing shell expansion markers such as `$(...)` or
+  backticks, but the host may expand such markers before the plugin
+  sees them, so never type them: pass document paths, not shell
+  fragments.
 
 ## Development
 

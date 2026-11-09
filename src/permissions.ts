@@ -1,4 +1,4 @@
-type Row = [string, string, string];
+type Row = [string, string, "allow" | "deny" | "ask"];
 const rules = (rows: Row[]) =>
   rows.map(([action, resource, effect]) => ({ action, resource, effect }));
 
@@ -8,11 +8,18 @@ export const reviewerPermissions = (bundle: string) =>
     ["read", "*", "allow"],
     ["read", "*.env", "deny"],
     ["read", "*.env.*", "deny"],
+    ["read", "**/.env", "deny"],
+    ["read", "**/.env.*", "deny"],
+    ["read", "**/*.env", "deny"],
+    ["read", "**/*.env.*", "deny"],
     ["read", "*.env.example", "allow"],
     ["read", "AGENTS.md", "deny"],
     ["read", "*/AGENTS.md", "deny"],
+    ["read", "**/AGENTS.md", "deny"],
     ["read", "CLAUDE.md", "deny"],
     ["read", "*/CLAUDE.md", "deny"],
+    ["read", "**/CLAUDE.md", "deny"],
+    ["read", "mcp:*", "deny"],
     ["glob", "*", "allow"],
     ["grep", "*", "deny"],
     ["external_directory", "*", "deny"],
@@ -28,9 +35,17 @@ export const primaryPermissions = (bundle: string, reviewers: string[]) =>
     ["read", "*", "allow"],
     ["read", "*.env", "ask"],
     ["read", "*.env.*", "ask"],
+    ["read", "**/*.env", "ask"],
+    ["read", "**/*.env.*", "ask"],
+    ["read", "**/.env.*", "ask"],
     ["read", "*.env.example", "allow"],
+    ["read", "mcp:*", "deny"],
     ["glob", "*", "allow"],
     ["grep", "*", "allow"],
+    ["grep", "*.env", "ask"],
+    ["grep", "*.env.*", "ask"],
+    ["grep", "**/*.env", "ask"],
+    ["grep", "**/*.env.*", "ask"],
     ["skill", "*", "deny"],
     ["skill", "egm-*", "allow"],
     ["subagent", "*", "deny"],
