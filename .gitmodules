@@ -1,0 +1,3 @@
+[submodule "vendor/egm"]
+	path = vendor/egm
+	url = https://github.com/google/elephant-goldfish-model.git

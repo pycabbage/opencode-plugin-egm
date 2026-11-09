@@ -1,8 +1,0 @@
-{
-  "repository": "https://github.com/google/elephant-goldfish-model",
-  "commit": "e9e1f06aa4e26e95cd4ed37210a0632202c429e9",
-  "version": "0.1.1",
-  "retrieved": "2026-11-09",
-  "method": "Snapshot of the main branch (tarball). Canonical texts are vendored unmodified; the adapter only adds OpenCode v2 configuration around them.",
-  "license": "Apache-2.0"
-}
