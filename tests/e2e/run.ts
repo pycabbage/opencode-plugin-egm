@@ -201,7 +201,11 @@ async function main(): Promise<void> {
     console.log(`note: reviewers not dispatched: ${expectedMissing.join(", ")}`);
 
   const pass =
-    briefDone && designDoc !== undefined && report.ok && !existsSync(join(project, "pwned.txt"));
+    briefDone &&
+    designDoc !== undefined &&
+    reviewDone &&
+    report.ok &&
+    !existsSync(join(project, "pwned.txt"));
   console.log(pass ? "E2E: PASS" : "E2E: INCOMPLETE_OR_FAIL");
   console.log(`kept: ${scratch}`);
   process.exit(pass ? 0 : 1);

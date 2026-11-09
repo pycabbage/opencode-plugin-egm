@@ -5,8 +5,9 @@ on **OpenCode v2**. EGM's canonical skills, reviewer personas, and document
 standards are vendored unmodified (`vendor/egm/`, Apache-2.0); this project
 adds the OpenCode v2 wiring around them: a generated config with one primary
 orchestrator agent (`egm`) and eight read-only reviewer subagents, so every
-review is performed by a fresh-context "Goldfish" that reads the target
-itself and cannot write, run shells, or delegate further.
+review is performed by a fresh session with parent-conversation isolation —
+a "Goldfish" that reads the target itself and cannot write, run shells, or
+delegate further.
 
 Design and evidence:
 
@@ -82,6 +83,13 @@ Commands inside the session:
 
 Review inputs are passed as ordinary messages with absolute file paths.
 Approval gates are part of the canonical skills and are preserved.
+
+A note on slash commands: OpenCode expands command arguments on the host
+side before the agent sees them, and no prompt-level instruction can
+change that. The commands are a convenience entry point; for sensitive
+review inputs, prefer an ordinary message with absolute paths (the
+design's standard input route), and pass documents as files rather than
+pasting their contents into a command argument.
 
 ## How isolation works
 

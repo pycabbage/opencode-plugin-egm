@@ -15,7 +15,9 @@
 `OPENCODE_DISABLE_PROJECT_CONFIG=1` + `--standalone`）で読み、
 `opencode debug agents` の実効ルール列を設計の期待値と突き合わせた。
 
-- 結果: **191 件の期待すべて一致**（レビュアー8名＋プライマリ）。
+- 結果: **すべての期待が一致**（第5回 E2E 時点で 191 件、実装レビュー
+  第2回を受けた最終版では 207 件。レビュアーの身元を正典8名に固定し、
+  MCP 風アクション名のサンプル期待を追加したため）
 - 内訳: レビュアーは書き込み・シェル・委譲・ネットワーク・grep・skill・
   未知アクション・プロジェクト外 external_directory が deny、
   プロジェクト内 read と glob が allow、`.env` 系 read が deny、
@@ -70,6 +72,9 @@
   `implementation_readiness_report.md`。
 - 全子セッションでマーカー（親専用／指示ファイル／.env）の不在、
   派遣対応、読み取り専用ツールの範囲を verifier が確認した。
+- 証跡: 親＋子17件のセッション export（推論の暗号文は除去）と
+  セッション一覧を `docs/verification/evidence/` に保存した。保存した
+  ファイル自体に verifier を再適用しても PASS する。
 
 ### 4. 途中で見つけて直した問題
 

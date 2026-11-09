@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { generateInstall, validateDestination } from "../../src/generate.ts";
@@ -53,6 +53,21 @@ describe("generateInstall", () => {
     expect(mismatches).toEqual([]);
     expect(ok).toBe(true);
     expect(result.manifest.sha256["opencode.json"]).toBeDefined();
+  });
+
+  test("rejects dangling-symlink destinations and symlinked parents", async () => {
+    const base = await mkdtemp(join(tmpdir(), "egm-link-"));
+    created.push(base);
+    const dangling = join(base, "dangling");
+    await symlink(join(base, "nowhere"), dangling);
+    await expect(validateDestination(dangling, EGM_ROOT)).rejects.toThrow(/symbolic link/);
+    const realDir = join(base, "real");
+    await mkdir(realDir);
+    const linkDir = join(base, "linkdir");
+    await symlink(realDir, linkDir, "dir");
+    await expect(validateDestination(join(linkDir, "install"), EGM_ROOT)).rejects.toThrow(
+      /symbolic link/,
+    );
   });
 
   test("refuses to install twice into the same destination", async () => {

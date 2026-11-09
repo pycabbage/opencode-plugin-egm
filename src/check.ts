@@ -17,6 +17,18 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { evaluatePermissions, type PermissionRule } from "./permissions.ts";
 
+/** Canonical reviewer agent ids (upstream persona frontmatter names). */
+export const CANONICAL_REVIEWERS = [
+  "egm-codebase-details",
+  "egm-comprehension",
+  "egm-design",
+  "egm-implementation-readiness",
+  "egm-inventive-catalyst",
+  "egm-structural",
+  "egm-style",
+  "egm-zoom-out",
+] as const;
+
 export interface EffectiveAgent {
   id: string;
   mode?: string;
@@ -46,6 +58,8 @@ export function reviewerExpectations(
     { agent: agentId, action: "question", resource: "*", expect: "deny" },
     { agent: agentId, action: "execute", resource: "*", expect: "deny" },
     { agent: agentId, action: "some_unknown_future_tool", resource: "*", expect: "deny" },
+    { agent: agentId, action: "mcp_resource_read", resource: "*", expect: "deny" },
+    { agent: agentId, action: "execute_code", resource: "*", expect: "deny" },
     {
       agent: agentId,
       action: "external_directory",
@@ -159,9 +173,10 @@ async function main(): Promise<void> {
     process.exit(2);
   }
   const { reviewerIds } = await loadInstall(dest);
-  if (reviewerIds.length !== 8) {
+  const canonical = [...CANONICAL_REVIEWERS].sort();
+  if (JSON.stringify([...reviewerIds].sort()) !== JSON.stringify(canonical)) {
     console.error(
-      `EGM preflight check FAILED: expected 8 reviewers, config has ${reviewerIds.length}`,
+      `EGM preflight check FAILED: reviewer set mismatch. expected ${canonical.join(", ")}, got ${reviewerIds.join(", ")}`,
     );
     process.exit(1);
   }
