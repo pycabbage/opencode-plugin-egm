@@ -146,7 +146,7 @@ async function main(): Promise<void> {
     "/egm-brainstorm URLを保存して後で読むための小さなCLIツール「read-it-later」の設計アイデアを広げてください。要件: ローカル完結、依存は最小限、データはJSONファイルに保存。",
   );
   for (let i = 0; i < 6 && !(await files()).includes("concepts_brief.md"); i++) {
-    await turn("承認します。推奨される選択肢で進めてください。");
+    await turn("Option 0 を選択します。提示された最初の選択肢で進めてください。");
   }
   const briefDone = (await files()).includes("concepts_brief.md");
   console.log(`brainstorm: concepts_brief.md ${briefDone ? "OK" : "MISSING"}`);
@@ -156,7 +156,7 @@ async function main(): Promise<void> {
   if (briefDone) {
     await turn("/egm-draft concepts_brief.md を基に read-it-later の設計書を作成してください。");
     for (let i = 0; i < 8 && !designDoc; i++) {
-      await turn("承認します。そのまま進めてください。");
+      await turn("Option 0 を選択します。提示された最初の選択肢でそのまま進めてください。");
       const fs = await files();
       designDoc = fs.find(
         (f) => /design/i.test(f) && f.endsWith(".md") && f !== "concepts_brief.md",
@@ -170,7 +170,7 @@ async function main(): Promise<void> {
   if (designDoc) {
     await turn(`/egm-review ${designDoc} をレビューしてください。`);
     for (let i = 0; i < 10 && !reviewDone; i++) {
-      await turn("承認します。そのまま進めてください。");
+      await turn("Option 0 を選択します。提示された最初の選択肢でそのまま進めてください。");
       const fs = await files();
       reviewDone = fs.some((f) => /final|zoom_out_report/.test(f));
     }
