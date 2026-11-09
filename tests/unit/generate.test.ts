@@ -1,21 +1,81 @@
-import { describe, expect, test } from "bun:test";
-import { ADAPTER_NAME, plannedOutputs } from "../../src/generate.ts";
-import { sha256Hex } from "../../src/manifest.ts";
+import { afterAll, describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { generateInstall, validateDestination } from "../../src/generate.ts";
+import { verifyManifest } from "../../src/manifest.ts";
 
-describe("scaffold", () => {
-  test("adapter name", () => {
-    expect(ADAPTER_NAME).toBe("opencode-plugin-egm");
-  });
+const EGM_ROOT = join(import.meta.dir, "..", "..", "vendor", "egm");
+const created: string[] = [];
 
-  test("planned outputs include the manifest and the config", () => {
-    const paths = plannedOutputs().map((o) => o.path);
-    expect(paths).toContain("opencode.json");
-    expect(paths).toContain("installation.json");
-  });
+async function freshDest(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "egm-install-"));
+  await rm(dir, { recursive: true, force: true });
+  created.push(dir);
+  return dir;
+}
 
-  test("sha256Hex matches the known empty-input digest", async () => {
-    expect(await sha256Hex(new Uint8Array())).toBe(
-      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+afterAll(async () => {
+  for (const dir of created) await rm(dir, { recursive: true, force: true });
+});
+
+describe("validateDestination", () => {
+  test("rejects existing paths, glob characters, and .env. paths", async () => {
+    await expect(validateDestination("/tmp", EGM_ROOT)).rejects.toThrow(
+      /already exists|symbolic link/,
     );
+    await expect(validateDestination("/tmp/egm[bad]", EGM_ROOT)).rejects.toThrow(/glob characters/);
+    await expect(validateDestination("/tmp/x.env.y/egm", EGM_ROOT)).rejects.toThrow(/\.env/);
+    await expect(validateDestination(join(EGM_ROOT, "inside"), EGM_ROOT)).rejects.toThrow(
+      /source tree/,
+    );
+  });
+});
+
+describe("generateInstall", () => {
+  test("produces bundle, config, launcher, and a verifiable manifest", async () => {
+    const dest = await freshDest();
+    const result = await generateInstall({ egmRoot: EGM_ROOT, dest, adapterVersion: "test" });
+    expect(existsSync(join(dest, "bundle", "skills", "egm-review", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(dest, "skills", "egm-review", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(dest, "egm-opencode.sh"))).toBe(true);
+    expect(existsSync(join(dest, "check.ts"))).toBe(true);
+
+    const config = JSON.parse(await readFile(join(dest, "opencode.json"), "utf8"));
+    expect(config.default_agent).toBe("egm");
+    expect(Object.keys(config.agents)).toHaveLength(9);
+    expect(Object.keys(config.commands)).toHaveLength(7);
+    expect(result.reviewerIds).toHaveLength(8);
+    expect(result.skillNames).toHaveLength(7);
+
+    const { ok, mismatches } = await verifyManifest(dest, result.manifest);
+    expect(mismatches).toEqual([]);
+    expect(ok).toBe(true);
+    expect(result.manifest.sha256["opencode.json"]).toBeDefined();
+  });
+
+  test("refuses to install twice into the same destination", async () => {
+    const dest = await freshDest();
+    await generateInstall({ egmRoot: EGM_ROOT, dest, adapterVersion: "test" });
+    await expect(
+      generateInstall({ egmRoot: EGM_ROOT, dest, adapterVersion: "test" }),
+    ).rejects.toThrow(/already exists/);
+  });
+
+  test("bundle contents are reproducible across destinations", async () => {
+    const a = await generateInstall({
+      egmRoot: EGM_ROOT,
+      dest: await freshDest(),
+      adapterVersion: "t",
+    });
+    const b = await generateInstall({
+      egmRoot: EGM_ROOT,
+      dest: await freshDest(),
+      adapterVersion: "t",
+    });
+    const bundleHash = (m: typeof a.manifest) =>
+      Object.entries(m.sha256).filter(([k]) => k.startsWith("bundle/"));
+    expect(bundleHash(a.manifest)).toEqual(bundleHash(b.manifest));
   });
 });

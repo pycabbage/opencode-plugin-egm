@@ -18,10 +18,14 @@
     "oxlint": "1.92.0"
   },
   "lint-staged": {
-    "*.ts": [
+    "src/**/*.ts": [
       "oxlint --fix",
       "oxfmt"
     ],
-    "*.json": "oxfmt"
+    "tests/**/*.ts": [
+      "oxlint --fix",
+      "oxfmt"
+    ],
+    "{package.json,tsconfig.json,.oxlintrc.json,.oxfmtrc.json}": "oxfmt"
   }
 }
