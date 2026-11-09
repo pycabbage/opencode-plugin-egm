@@ -117,10 +117,13 @@ Verified on OpenCode 2.2.6 with `opencode-go/crouton-alpha-free`
 - The permission guarantee covers launches through `egm-opencode.sh`
   (preflight-verified). Launching OpenCode with the generated config by
   hand is outside the guarantee.
-- Under the launch profile, instruction files such as `AGENTS.md` in your
-  project were observed not to reach reviewer context (2026-11-09 probe);
-  if a future OpenCode version changes that, the honest support wording is
-  "parent-conversation isolation", not "no project context at all".
+- Reviewers are denied reading files named `AGENTS.md` or `CLAUDE.md`
+  anywhere (a Phase 3 run showed a persona reading `AGENTS.md` as a
+  document while exploring a project). Reviewing a document that is
+  itself named `AGENTS.md`/`CLAUDE.md` is therefore out of scope for
+  reviewers in v0.1. Host-side ambient injection of instruction files
+  into subagent context was not observed; the verified guarantee is
+  parent-conversation isolation plus this filename guard.
 
 ## Development
 
