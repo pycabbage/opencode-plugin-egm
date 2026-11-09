@@ -30,6 +30,11 @@ export function reviewerPermissions(bundleRoot: string): PermissionRule[] {
     rule("read", "*.env.*", "deny"),
     rule("read", "*.env.example", "allow"),
     rule("glob", "*", "allow"),
+    // Instruction files are denied as documents too: a persona that goes
+    // looking for project context must not pull AGENTS.md / CLAUDE.md into
+    // the fresh reviewer context (design section 7.3, L2 guard).
+    rule("read", "AGENTS.md", "deny"),
+    rule("read", "CLAUDE.md", "deny"),
     // grep is denied: content search can bypass per-file read rules.
     rule("grep", "*", "deny"),
     // The bundle lives outside the user's project, so it needs an explicit
@@ -43,6 +48,13 @@ export function reviewerPermissions(bundleRoot: string): PermissionRule[] {
 export function primaryPermissions(bundleRoot: string, reviewerIds: string[]): PermissionRule[] {
   return [
     rule("*", "*", "ask"),
+    // The Elephant writes the artifacts and runs the skills' shell steps
+    // with the user's own authority; "ask" auto-denies in non-interactive
+    // runs and breaks artifact writing (Phase 3 finding). Human approval
+    // gates live in the canonical skill flow, not in file permissions.
+    rule("write", "*", "allow"),
+    rule("edit", "*", "allow"),
+    rule("shell", "*", "allow"),
     rule("read", "*", "allow"),
     rule("read", "*.env", "ask"),
     rule("read", "*.env.*", "ask"),

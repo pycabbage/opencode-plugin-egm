@@ -33,6 +33,10 @@ describe("reviewerPermissions", () => {
     expect(evaluatePermissions(rules, "read", "config/.env.production")).toBe("deny");
     expect(evaluatePermissions(rules, "read", ".env.example")).toBe("allow");
   });
+  test("denies reading instruction files as documents", () => {
+    expect(evaluatePermissions(rules, "read", "/proj/AGENTS.md")).toBe("deny");
+    expect(evaluatePermissions(rules, "read", "CLAUDE.md")).toBe("deny");
+  });
   test("external_directory: bundle allowed, other paths denied", () => {
     expect(evaluatePermissions(rules, "external_directory", `${BUNDLE}/agents/style.md`)).toBe(
       "allow",
@@ -43,6 +47,11 @@ describe("reviewerPermissions", () => {
 
 describe("primaryPermissions", () => {
   const rules = primaryPermissions(BUNDLE, REVIEWERS);
+  test("may write artifacts and run shell steps", () => {
+    expect(evaluatePermissions(rules, "write", "/proj/concepts_brief.md")).toBe("allow");
+    expect(evaluatePermissions(rules, "edit", "/proj/design.md")).toBe("allow");
+    expect(evaluatePermissions(rules, "shell", "*")).toBe("allow");
+  });
   test("may dispatch only to registered reviewers", () => {
     expect(evaluatePermissions(rules, "subagent", "egm-design")).toBe("allow");
     expect(evaluatePermissions(rules, "subagent", "general")).toBe("deny");

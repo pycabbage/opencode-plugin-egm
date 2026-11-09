@@ -1,6 +1,6 @@
 {
   "name": "opencode-plugin-egm",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "description": "EGM (Elephant-Goldfish Model) adapter for OpenCode v2",
   "type": "module",
@@ -9,7 +9,9 @@
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "test": "bun test",
-    "prepare": "husky"
+    "prepare": "husky",
+    "probe": "bun run tests/probe/run.ts",
+    "e2e": "bun run tests/e2e/run.ts"
   },
   "devDependencies": {
     "husky": "9.1.7",

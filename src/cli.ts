@@ -12,7 +12,7 @@ import { generateInstall } from "./generate.ts";
 import { verifyManifest, type InstallManifest } from "./manifest.ts";
 import { readFile } from "node:fs/promises";
 
-const ADAPTER_VERSION = "0.1.0-dev";
+const ADAPTER_VERSION = "0.1.0";
 
 function defaultEgmRoot(): string {
   return join(new URL("..", import.meta.url).pathname, "vendor", "egm");

@@ -43,12 +43,17 @@ export function reviewerExpectations(agentId: string, sampleTarget: string): Che
     { agent: agentId, action: "read", resource: ".env", expect: "deny" },
     { agent: agentId, action: "read", resource: "config/.env.production", expect: "deny" },
     { agent: agentId, action: "read", resource: ".env.example", expect: "allow" },
+    { agent: agentId, action: "read", resource: "AGENTS.md", expect: "deny" },
+    { agent: agentId, action: "read", resource: "docs/CLAUDE.md", expect: "deny" },
     { agent: agentId, action: "glob", resource: "*", expect: "allow" },
   ];
 }
 
 export function primaryExpectations(reviewerIds: string[]): CheckExpectation[] {
   const out: CheckExpectation[] = [
+    { agent: "egm", action: "write", resource: "/proj/artifact.md", expect: "allow" },
+    { agent: "egm", action: "edit", resource: "/proj/artifact.md", expect: "allow" },
+    { agent: "egm", action: "shell", resource: "*", expect: "allow" },
     { agent: "egm", action: "subagent", resource: "general", expect: "deny" },
     { agent: "egm", action: "subagent", resource: "explore", expect: "deny" },
     { agent: "egm", action: "skill", resource: "egm-review", expect: "allow" },
